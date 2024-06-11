@@ -436,14 +436,14 @@ def main():
     parser = argparse.ArgumentParser(description=description, formatter_class=RawTextHelpFormatter)
     parser.add_argument('--host', default='localhost',
                         help='IP of the host server (default: localhost)')
-    parser.add_argument('--port', default='2000', help='TCP port to listen to (default: 2000)')
-    parser.add_argument('--trafficManagerPort', default='8000',
+    parser.add_argument('--port', default='2002', help='TCP port to listen to (default: 2000)')
+    parser.add_argument('--trafficManagerPort', default='2512',
                         help='Port to use for the TrafficManager (default: 8000)')
     parser.add_argument('--trafficManagerSeed', default='1',
                         help='Seed used by the TrafficManager (default: 0)')
-    parser.add_argument('--carlaProviderSeed', default='2000',
+    parser.add_argument('--carlaProviderSeed', default='2002',
                         help='Seed used by the CarlaProvider (default: 2000)')
-    parser.add_argument('--debug', type=int, help='Run with debug output', default=0)
+    parser.add_argument('--debug', type=int, help='Run with debug output', default=1)
     parser.add_argument('--record', type=str, default='',
                         help='Use CARLA recording feature to create a recording of the scenario')
     parser.add_argument('--timeout', default="600.0",
@@ -466,7 +466,7 @@ def main():
     parser.add_argument("--agent-config", type=str, help="Path to Agent's configuration file", default="/mnt/HDD1/phudh/course/calar/IDS_s24/HW0/agents/checkpoints/TFPP")
 
     parser.add_argument("--track", type=str, default='SENSORS', help="Participation track: SENSORS, MAP")
-    parser.add_argument('--resume', type=bool, default=True, help='Resume execution from last checkpoint?')
+    parser.add_argument('--resume', type=bool, default=False, help='Resume execution from last checkpoint?')
     parser.add_argument("--checkpoint", type=str,
                         default='/mnt/HDD1/phudh/course/calar/IDS_s24/HW0/results/DOS/test/result.json',
                         help="Path to checkpoint used for saving statistics and resuming")

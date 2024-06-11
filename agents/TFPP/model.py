@@ -22,6 +22,8 @@ from copy import deepcopy
 import math
 import os
 
+from yolov9.utils.plots import Annotator
+from yolov9.utils.plots import colors as colors_
 
 class LidarCenterNet(nn.Module):
   """
@@ -683,7 +685,9 @@ class LidarCenterNet(nn.Module):
       gt_bbs=None,
       gt_speed=None,
       gt_bev_semantic=None,
-      wp_selected=None):
+      wp_selected=None,
+      sub_det=None,
+      labels_name=None):
     # 0 Car, 1 Pedestrian, 2 Red light, 3 Stop sign
     color_classes = [np.array([255, 165, 0]), np.array([0, 255, 0]), np.array([255, 0, 0]), np.array([250, 160, 160])]
 
@@ -796,7 +800,7 @@ class LidarCenterNet(nn.Module):
         np.deg2rad(90.0), 0.0
     ])
     images_lidar = t_u.draw_box(images_lidar, sample_box, color=(0, 200, 0), pixel_per_meter=16, thickness=4)
-
+    print('pred_bb: ', pred_bb[0].shape)
     if pred_bb is not None:
       for box in pred_bb:
         inv_brake = 1.0 - box[6]
@@ -816,6 +820,20 @@ class LidarCenterNet(nn.Module):
     images_lidar = np.rot90(images_lidar, k=1)
 
     rgb_image = rgb[0].permute(1, 2, 0).detach().cpu().numpy()
+
+    # ==== draw pred from yolo
+    annotator = Annotator(rgb_image, line_width=1, example='yov9_predict')
+    for *xyxy, conf, cls in reversed(sub_det):
+      c = int(cls)  # integer class
+      label = f'{labels_name[c]} {conf:.2f}'
+      annotator.box_label(xyxy, label, color=colors_(c, True))
+
+      xyxy[:4] = xyxy[:4] * scale_factor
+      images_lidar = t_u.draw_box(images_lidar, xyxy, color=(255, 0, 0), pixel_per_meter=loc_pixels_per_meter)
+
+
+    rgb_image = annotator.result()
+    # ======
 
     if wp_selected is not None:
       colors_name = ['blue', 'yellow']
