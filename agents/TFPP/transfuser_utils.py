@@ -247,7 +247,7 @@ def draw_line(img, start_row, start_column, end_row, end_column, color=(255, 255
   return img
 
 
-def draw_box(img, box, color=(255, 255, 255), pixel_per_meter=4, thickness=1):
+def draw_box(img, box, color=(255, 255, 255), pixel_per_meter=4, thickness=1,track = False,tran = None):
   translation = np.array([[box[0], box[1]]])
   width = box[2]
   height = box[3]
@@ -268,47 +268,60 @@ def draw_box(img, box, color=(255, 255, 255), pixel_per_meter=4, thickness=1):
   corner_global[:, 1] = np.clip(corner_global[:, 1], a_min=0, a_max=max_column - 1)
   speed_coords_global[:, 0] = np.clip(speed_coords_global[:, 0], a_min=0, a_max=max_row - 1)
   speed_coords_global[:, 1] = np.clip(speed_coords_global[:, 1], a_min=0, a_max=max_column - 1)
+  #img = np.rot90(img, k=1)
+  #img = np.ascontiguousarray(img, dtype=np.uint8)
+  if track:
+    #cv2.putText(img, str(int(box[5])), (int(box[1]), int(box[0])), cv2.FONT_HERSHEY_SIMPLEX, 1,  color, 2, cv2.LINE_AA)
+    if box[6] > -10:
+      cv2.circle(img, (int(box[7]), int(box[6])), 2, color, 2)
+    cv2.circle(img, (int(box[1]), int(box[0])), 2,  color, 2)
+    if tran is not None:
+      cv2.putText(img, str(np.round(tran, 1)), (int(box[1]), int(box[0])), cv2.FONT_HERSHEY_SIMPLEX, 1,  color, 2, cv2.LINE_AA)
 
-  img = draw_line(img,
-                  start_row=corner_global[0, 0],
-                  start_column=corner_global[0, 1],
-                  end_row=corner_global[1, 0],
-                  end_column=corner_global[1, 1],
-                  color=color,
-                  thickness=thickness,
-                  rmax=max_row)
-  img = draw_line(img,
-                  start_row=corner_global[1, 0],
-                  start_column=corner_global[1, 1],
-                  end_row=corner_global[2, 0],
-                  end_column=corner_global[2, 1],
-                  color=color,
-                  thickness=thickness,
-                  rmax=max_row)
-  img = draw_line(img,
-                  start_row=corner_global[2, 0],
-                  start_column=corner_global[2, 1],
-                  end_row=corner_global[3, 0],
-                  end_column=corner_global[3, 1],
-                  color=color,
-                  thickness=thickness,
-                  rmax=max_row)
-  img = draw_line(img,
-                  start_row=corner_global[3, 0],
-                  start_column=corner_global[3, 1],
-                  end_row=corner_global[0, 0],
-                  end_column=corner_global[0, 1],
-                  color=color,
-                  thickness=thickness,
-                  rmax=max_row)
-  img = draw_line(img,
-                  start_row=speed_coords_global[0, 0],
-                  start_column=speed_coords_global[0, 1],
-                  end_row=speed_coords_global[1, 0],
-                  end_column=speed_coords_global[1, 1],
-                  color=color,
-                  thickness=thickness,
-                  rmax=max_row)
+
+  #img = np.rot90(img, k=3)
+  #img = np.ascontiguousarray(img, dtype=np.uint8)
+  else:
+    img = draw_line(img,
+                    start_row=corner_global[0, 0],
+                    start_column=corner_global[0, 1],
+                    end_row=corner_global[1, 0],
+                    end_column=corner_global[1, 1],
+                    color=color,
+                    thickness=thickness,
+                    rmax=max_row)
+    img = draw_line(img,
+                    start_row=corner_global[1, 0],
+                    start_column=corner_global[1, 1],
+                    end_row=corner_global[2, 0],
+                    end_column=corner_global[2, 1],
+                    color=color,
+                    thickness=thickness,
+                    rmax=max_row)
+    img = draw_line(img,
+                    start_row=corner_global[2, 0],
+                    start_column=corner_global[2, 1],
+                    end_row=corner_global[3, 0],
+                    end_column=corner_global[3, 1],
+                    color=color,
+                    thickness=thickness,
+                    rmax=max_row)
+    img = draw_line(img,
+                    start_row=corner_global[3, 0],
+                    start_column=corner_global[3, 1],
+                    end_row=corner_global[0, 0],
+                    end_column=corner_global[0, 1],
+                    color=color,
+                    thickness=thickness,
+                    rmax=max_row)
+  # img = draw_line(img,
+  #                 start_row=speed_coords_global[0, 0],
+  #                 start_column=speed_coords_global[0, 1],
+  #                 end_row=speed_coords_global[1, 0],
+  #                 end_column=speed_coords_global[1, 1],
+  #                 color=color,
+  #                 thickness=thickness,
+  #                 rmax=max_row)
 
   return img
 

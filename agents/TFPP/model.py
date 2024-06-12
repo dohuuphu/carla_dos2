@@ -13,7 +13,7 @@ from center_net import LidarCenterNetHead
 import cv2
 from matplotlib.colors import ListedColormap
 import matplotlib.pyplot as plt
-
+from global_motion import GM
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -23,6 +23,7 @@ import math
 import os
 
 
+
 class LidarCenterNet(nn.Module):
   """
   The main model class. It can run all model configurations.
@@ -30,6 +31,7 @@ class LidarCenterNet(nn.Module):
 
   def __init__(self, config):
     super().__init__()
+    self.GM = GM()
     self.config = config
 
     self.data = CARLA_Data(root=[], config=self.config, shared_dict=None)
@@ -101,6 +103,7 @@ class LidarCenterNet(nn.Module):
       # Register as parameter so that it will automatically be moved to the correct GPU with the rest of the network
       self.valid_bev_pixels = nn.Parameter(valid_bev_pixels, requires_grad=False)
       self.valid_bev_pixels_inv = nn.Parameter(valid_bev_pixels_inv, requires_grad=False)
+      self.image_prev = None
 
     if self.config.use_depth:
       self.depth_decoder = t_u.PerspectiveDecoder(
@@ -683,8 +686,10 @@ class LidarCenterNet(nn.Module):
       gt_bbs=None,
       gt_speed=None,
       gt_bev_semantic=None,
-      wp_selected=None):
+      wp_selected=None,
+      trackers = None):
     # 0 Car, 1 Pedestrian, 2 Red light, 3 Stop sign
+    
     color_classes = [np.array([255, 165, 0]), np.array([0, 255, 0]), np.array([255, 0, 0]), np.array([250, 160, 160])]
 
     size_width = int((self.config.max_y - self.config.min_y) * self.config.pixels_per_meter)
@@ -706,6 +711,8 @@ class LidarCenterNet(nn.Module):
     images_lidar = cv2.resize(images_lidar,
                               dsize=(images_lidar.shape[1] * scale_factor, images_lidar.shape[0] * scale_factor),
                               interpolation=cv2.INTER_NEAREST)
+    images_lidar1 = deepcopy(images_lidar)
+    
     # # Render road over image
     # road = self.ss_bev_manager.get_road()
     # # Alpha blending the road over the LiDAR
@@ -797,6 +804,9 @@ class LidarCenterNet(nn.Module):
     ])
     images_lidar = t_u.draw_box(images_lidar, sample_box, color=(0, 200, 0), pixel_per_meter=16, thickness=4)
 
+
+
+    
     if pred_bb is not None:
       for box in pred_bb:
         inv_brake = 1.0 - box[6]
@@ -804,6 +814,53 @@ class LidarCenterNet(nn.Module):
         color_box[1] = color_box[1] * inv_brake
         box = t_u.bb_vehicle_to_image_system(box, loc_pixels_per_meter, self.config.min_x, self.config.min_y)
         images_lidar = t_u.draw_box(images_lidar, box, color=color_box, pixel_per_meter=loc_pixels_per_meter)
+
+    images_lidar_vis = Image.fromarray(images_lidar1.astype(np.uint8))
+    store_path1 = str(str(save_path) + (f'orignal/{step:04}.png'))
+    Path(store_path1).parent.mkdir(parents=True, exist_ok=True)
+    images_lidar_vis.save(store_path1)
+
+    if self.image_prev is not None:
+      if trackers is not None:
+        for k in range(trackers.shape[0]):
+          #box = t_u.bb_vehicle_to_image_system(trackers[k], loc_pixels_per_meter, self.config.min_x, self.config.min_y)
+          T = None
+          magnitude = None
+          FPS_lidar = 30
+          speed_ego = ((gt_speed*loc_pixels_per_meter).detach().cpu().numpy()) *(1/FPS_lidar)
+          if trackers[k][-1]> -10:
+            T = self.GM.find_translate(images_lidar1,self.image_prev,trackers[k][6:11],trackers[k][11:])
+
+            point1 = np.array([trackers[k][7],trackers[k][6]])
+            point2 = np.array([trackers[k][12],trackers[k][11]])
+            vector = point2 - point1
+            print( vector[0],speed_ego)
+            vec0  = (speed_ego + vector[0])#/velocity[0]
+            vector_final = np.array([vec0,vector[1]])
+            magnitude = np.linalg.norm(vector_final)
+
+            #print('sss',magnitude)
+            # print( trackers[k][-5])
+            if abs(magnitude)< 1:
+              color=(255, 0, 0)
+            else:
+              color=(0, 0, 255)
+          else:
+            color=(0, 255, 0)
+              
+
+          if T is not None:
+            #print(T)
+            T[0, 0] -= deepcopy(speed_ego)
+
+            T = np.linalg.norm(T)
+          print(T,speed_ego)
+          T = magnitude
+
+          images_lidar = t_u.draw_box(images_lidar, trackers[k], color=(255, 0, 0), pixel_per_meter=loc_pixels_per_meter,track=True,tran = T)
+    self.image_prev = images_lidar1
+
+      
 
     if gt_bbs is not None:
       gt_bbs = gt_bbs.detach().cpu().numpy()[0]
@@ -814,7 +871,7 @@ class LidarCenterNet(nn.Module):
         images_lidar = t_u.draw_box(images_lidar, box, color=(0, 255, 255), pixel_per_meter=loc_pixels_per_meter)
 
     images_lidar = np.rot90(images_lidar, k=1)
-
+    
     rgb_image = rgb[0].permute(1, 2, 0).detach().cpu().numpy()
 
     if wp_selected is not None:

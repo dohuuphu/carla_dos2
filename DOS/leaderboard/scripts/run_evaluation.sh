@@ -20,10 +20,10 @@ export REPETITIONS=1 # multiple evaluation runs
 export ROUTES=${HOMEWORK_DIR}/DOS/DOS_benchmark/DOS_01_town05.xml
 export TEAM_AGENT=${HOMEWORK_DIR}/agents/${MODEL_NAME}/longest6_agent.py # agent
 export TEAM_CONFIG=${HOMEWORK_DIR}/agents/checkpoints/${MODEL_NAME} # model checkpoint, not required for expert
-export CHECKPOINT_ENDPOINT=${HOMEWORK_DIR}/results/DOS/${MODEL_NAME}/DOS_01_result_1.json # results file
+export CHECKPOINT_ENDPOINT=${HOMEWORK_DIR}/results/DOS/${MODEL_NAME}/DOS_01_result_2.json # results file
 export SCENARIOS=${HOMEWORK_DIR}/DOS/DOS_benchmark/DOS_01_town05.json
 export SAVE_PATH=${HOMEWORK_DIR}/results/DOS/${MODEL_NAME} # path for saving episodes while evaluating
-export RESUME=True
+export RESUME=False
 export DIRECT=1
 
 python3 ${LEADERBOARD_ROOT}/leaderboard/leaderboard_evaluator.py \
