@@ -244,8 +244,8 @@ class RouteScenario(BasicScenario):
         self.timeout = self._estimate_route_timeout()
 
         # Print route in debug mode
-        if debug_mode:
-            self._draw_waypoints(world, self.route, vertical_shift=1.0, persistency=50000.0)
+        # if debug_mode:
+        #     self._draw_waypoints(world, self.route, vertical_shift=1.0, persistency=50000.0)
 
     def _update_ego_vehicle(self):
         """
@@ -385,6 +385,7 @@ class RouteScenario(BasicScenario):
                 world.debug.draw_point(loc, size=0.3, color=carla.Color(255, 0, 0), life_time=100000)
                 world.debug.draw_string(loc, str(scenario['name']), draw_shadow=False,
                                         color=carla.Color(0, 0, 255), life_time=100000, persistent_lines=True)
+                                        
 
         for scenario_number, definition in enumerate(scenario_definitions):
             # Get the class possibilities for this scenario number

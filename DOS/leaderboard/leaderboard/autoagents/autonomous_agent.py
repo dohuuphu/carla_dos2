@@ -10,6 +10,7 @@ This module provides the base class for all autonomous agents
 from __future__ import print_function
 
 from enum import Enum
+import cv2 
 
 import carla
 from srunner.scenariomanager.timer import GameTime
@@ -112,7 +113,12 @@ class AutonomousAgent(object):
 
         # print('======[Agent] Wallclock_time = {} / {} / Sim_time = {} / {}x'.format(wallclock, wallclock_diff, timestamp, timestamp/(wallclock_diff+0.001)))
 
-        control = self.run_step(input_data, timestamp)
+        # draf save data
+        # image = input_data['rgb_front'][1]
+        # image = cv2.cvtColor(image , cv2.COLOR_RGBA2RGB)
+        # cv2.imwrite(f'./rgb/{timestamp}.png', image)
+
+        control = self.run_step(input_data, timestamp) #rgb_front : 256,1024,4
         control.manual_gear_shift = False
 
         return control

@@ -29,6 +29,8 @@ from filterpy.kalman import UnscentedKalmanFilter as UKF
 from scenario_logger import ScenarioLogger
 import transfuser_utils as t_u
 
+from yolov9.yolov9 import yolo
+
 import pathlib
 import pickle
 import ujson  # Like json but faster
@@ -193,6 +195,8 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
   def _init(self):
     # During setup() not everything is available yet, so this _init is a second setup in run_step()
     # Privileged map access for logging and visualizations. Turned off during normal evaluation.
+    self.detector = yolo()
+
     if self.save_path is not None:
       from srunner.scenariomanager.carla_data_provider import CarlaDataProvider  # pylint: disable=locally-disabled, import-outside-toplevel
       from nav_planner import interpolate_trajectory  # pylint: disable=locally-disabled, import-outside-toplevel
@@ -340,6 +344,10 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
       self.lon_logger.log_step(route)
 
     return result
+  
+  # @torch.inference_mode()
+  # def detector(self, input_data):
+
 
   @torch.inference_mode()  # Turns off gradient computation
   def run_step(self, input_data, timestamp, sensors=None):  # pylint: disable=locally-disabled, unused-argument
@@ -356,6 +364,9 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
 
     # Need to run this every step for GPS filtering
     tick_data = self.tick(input_data)
+
+    det = self.detector.forward(input_data['rgb_front'][1], timestamp)
+
 
     lidar_indices = []
     for i in range(self.config.lidar_seq_len):
@@ -532,7 +543,9 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
                                    gt_speed=gt_velocity,
                                    gt_wp=pred_wp_1,
                                    wp_selected=wp_selected,
-                                   trackers = mot_trackers)
+                                   trackers = mot_trackers,
+                                   sub_det=det,
+                                   labels_name=self.detector.names)
 
     if self.config.use_wp_gru:
       self.pred_wp = torch.stack(pred_wps, dim=0).mean(dim=0)

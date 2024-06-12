@@ -1,7 +1,7 @@
-export CARLA_ROOT=./carla_10/
+export CARLA_ROOT=/mnt/HDD1/phudh/course/calar/IDS_s24/phu_dev/carla_10
 export PYTHONPATH=$PYTHONPATH:${CARLA_ROOT}/PythonAPI
 export PYTHONPATH=$PYTHONPATH:${CARLA_ROOT}/PythonAPI/carla
-export PYTHONPATH=$PYTHONPATH:$CARLA_ROOT/PythonAPI/carla/dist/carla-0.9.10-py3.7-linux-x86_64.egg
-export HOMEWORK_DIR=/mnt/HDD1/phudh/course/calar/IDS_s24/HW0
+export PYTHONPATH=$PYTHONPATH:/mnt/HDD1/phudh/course/calar/IDS_s24/phu_dev/carla_10/PythonAPI/carla/dist/carla-0.9.10-py3.7-linux-x86_64.egg
+export HOMEWORK_DIR=/mnt/HDD1/phudh/course/calar/IDS_s24/phu_dev
 export PYTHONPATH=$PYTHONPATH:${HOMEWORK_DIR}/DOS/leaderboard
 export PYTHONPATH=$PYTHONPATH:${HOMEWORK_DIR}/DOS/scenario_runner
