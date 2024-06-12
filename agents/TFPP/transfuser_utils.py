@@ -248,13 +248,6 @@ def draw_line(img, start_row, start_column, end_row, end_column, color=(255, 255
 
 
 def draw_box(img, box, color=(255, 255, 255), pixel_per_meter=4, thickness=1):
-  try:
-    box[0]=     box[0].cpu().numpy()
-    box[1]=     box[1].cpu().numpy()
-    box[2]=     box[2].cpu().numpy()
-    box[3]=     box[3].cpu().numpy()
-  except:
-    pass
 
   translation = np.array([[box[0], box[1]]])
   width = box[2]

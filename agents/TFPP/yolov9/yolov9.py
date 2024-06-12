@@ -103,7 +103,7 @@ class yolo():
                 conf_thres=0.25,  # confidence threshold
                 iou_thres=0.45,  # NMS IOU threshold
                 max_det=1000,
-                classes=[0, 1, 2, 7],  # filter by class: --class 0, or --class 0 2 3
+                classes=[0, 1, 2, 5, 7],  # filter by class: --class 0, or --class 0 2 3
                 agnostic_nms=False,  # class-agnostic NMS
                 save_img=False,
                 hide_labels =False,
@@ -167,8 +167,8 @@ class yolo():
             # Save results (image with detections)
             if save_img:
                 cv2.imwrite(save_path, im0)
-
-        return det
+        # det[:,0] = det[:,0].cpu().numpy()
+        return det.cpu().numpy()
 
         # Print time (inference-only)
         # LOGGER.info(f"{s}{'' if len(det) else '(no detections), '}{dt[1].dt * 1E3:.1f}ms")
