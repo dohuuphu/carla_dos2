@@ -165,3 +165,4 @@ sub_network/runs
 
 visualize
 visualize_DL
+*.pt

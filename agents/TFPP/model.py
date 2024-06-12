@@ -691,7 +691,8 @@ class LidarCenterNet(nn.Module):
       wp_selected=None,
       trackers = None,
       sub_det=None,
-      labels_name=None):
+      labels_name=None,
+      stt=None):
     # 0 Car, 1 Pedestrian, 2 Red light, 3 Stop sign
     
     color_classes = [np.array([255, 165, 0]), np.array([0, 255, 0]), np.array([255, 0, 0]), np.array([250, 160, 160])]
@@ -874,9 +875,16 @@ class LidarCenterNet(nn.Module):
         box[:4] = box[:4] * scale_factor
         images_lidar = t_u.draw_box(images_lidar, box, color=(0, 255, 255), pixel_per_meter=loc_pixels_per_meter)
 
-    images_lidar = np.rot90(images_lidar, k=1)
     
+
     rgb_image = rgb[0].permute(1, 2, 0).detach().cpu().numpy()
+
+    # ==== draw status
+    for i, line in enumerate(stt.split('\n')):
+      y = 50 + i*40
+      cv2.putText(rgb_image, line, (50, y ), cv2.FONT_HERSHEY_SIMPLEX, 1,(243, 0, 251), 2)
+
+      # cv2.putText(rgb_image, stt, (50, 200), font, 1, (255, 0, 0), 2)
 
     # ==== draw pred from yolo
     annotator = Annotator(rgb_image, line_width=1, example='yov9_predict')
@@ -885,11 +893,40 @@ class LidarCenterNet(nn.Module):
       label = f'{labels_name[c]} {conf:.2f}'
       annotator.box_label(xyxy, label, color=colors_(c, True))
 
-      xyxy[:4] = xyxy[:4] * scale_factor
-      images_lidar = t_u.draw_box(images_lidar, xyxy, color=(255, 0, 0), pixel_per_meter=loc_pixels_per_meter)
+      
 
+      #convert to BEV
+      # try:
+      #   xyxy[0]=     xyxy[0].cpu().numpy()
+      #   xyxy[1]=     xyxy[1].cpu().numpy()
+      #   xyxy[2]=     xyxy[2].cpu().numpy()
+      #   xyxy[3]=     xyxy[3].cpu().numpy()
+      # except:
+      #   pass
+      # x1, y1, x2, y2 = xyxy
+      # x = x1.item()
+      # y = y1.item()
+      # w = x2 - x1
+      # h = y2 - y1
+      # box2 = np.array([x, y, w, h, box[4], box[5]])
+
+      # # Multiply position and extent by pixels_per_meter to convert the unit from meters to pixels
+      # box2[:4] = box2[:4] * loc_pixels_per_meter
+       
+      # # Pixel coordinates is y front, x right. CARLA is x front, y right.
+      # # So we need to swap the axes to convert the coordinates.
+      # box2[0], box2[1] = box2[1], box2[0]
+      # box2[2], box2[3] = box2[3], box2[2]
+      # # Compute pixel location that represents 0/0 in the image
+      # translation = np.array([-(self.config.min_x * loc_pixels_per_meter), -(self.config.min_y * loc_pixels_per_meter)])
+      # # Shift the coordinates so that the ego_vehicle is at the center of the image
+      # box2[:2] = box2[:2] + translation
+      # box2[4] = -box2[4]
+      # images_lidar = t_u.draw_box(images_lidar, box2, color=(255, 0, 0), pixel_per_meter=loc_pixels_per_meter)
 
     rgb_image = annotator.result()
+    images_lidar = np.rot90(images_lidar, k=1)
+
     # ======
 
     if wp_selected is not None:

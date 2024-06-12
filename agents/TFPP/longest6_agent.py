@@ -30,6 +30,7 @@ from scenario_logger import ScenarioLogger
 import transfuser_utils as t_u
 
 from yolov9.yolov9 import yolo
+from warningzone import *
 
 import pathlib
 import pickle
@@ -56,7 +57,8 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
 
   def setup(self, path_to_conf_file, route_index=None):
     """Sets up the agent. route_index is for logging purposes"""
-    route_index ="1"
+    self.route_index =str(route_index)
+    print('route_inde ', route_index)
     torch.cuda.empty_cache()
     self.track = autonomous_agent.Track.SENSORS
     self.config_path = path_to_conf_file
@@ -177,13 +179,13 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
     self.save_path = os.environ.get('SAVE_PATH')
 
     # Logger that generates logs used for infraction replay in the results_parser.
-    if self.save_path is not None and route_index is not None:
-      self.save_path = pathlib.Path(self.save_path) / route_index
+    if self.save_path is not None and  self.route_index is not None:
+      self.save_path = pathlib.Path(self.save_path) /  self.route_index
       pathlib.Path(self.save_path).mkdir(parents=True, exist_ok=True)
 
       self.lon_logger = ScenarioLogger(
           save_path=self.save_path,
-          route_index=route_index,
+          route_index= self.route_index,
           logging_freq=self.config.logging_freq,
           log_only=True,
           route_only=False,  # with vehicles
@@ -218,6 +220,10 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
     self._route_planner.set_route(self._global_plan, True)
     self.initialized = True
     self.tracker = Sort()
+    self.is_dangerous = False
+    self.number_person = 0
+    self.timeout_dg = 0
+    self.dg_distance = 0
 
   def sensors(self):
     sensors = [{
@@ -345,8 +351,79 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
 
     return result
   
-  # @torch.inference_mode()
-  # def detector(self, input_data):
+  
+
+
+
+  def dangerous_distance(self, sub_det, pred_semantic, pred_depth):
+    '''
+    step 1: findout region of person (on_street, right of car) 
+      - use segment to draw drive area
+      - devide lane
+    step 2: check exist person and car
+      - if person on the street  -> minus_speed = 1 - depth
+      -
+    '''
+
+    threshold = 200
+    dg_distance = 400
+    timeout = 40
+
+    if self.is_dangerous:
+      self.timeout_dg+=1
+      if self.timeout_dg >= timeout:
+        self.is_dangerous = False
+        self.dg_distance = 0
+        self.timeout_dg = 0
+
+
+    # select target_box
+    bbox_target = select_largest_bbox_rightImg(sub_det, pred_depth.shape[2])
+    if bbox_target is None:
+      # self.dg_distance = 0
+      return f'is_dangerous: {self.is_dangerous}\ndistance: {self.dg_distance:.3f}, timeout: {self.timeout_dg}'
+
+    # create dangerous region (DR)
+    # center_box = calculate_center(bbox_target) # bbox_target:xyxy
+    person_info = get_person_info(sub_det) # {'person':[xyxy,xyxy,...]}
+    if person_info['person'] == []:
+      # self.dg_distance = 0
+      return f'is_dangerous: {self.is_dangerous}\ndistance: {self.dg_distance:.3f}, timeout: {self.timeout_dg}'
+    
+    person_Pcar_distance_right = get_right_boxes_and_Mindistances(bbox_target, person_info['person'])
+    person_Pcar_distance_left = get_left_boxes_and_Maxdistances(bbox_target, person_info['person'])
+    print(f'person-carr:  right {person_Pcar_distance_right}: left {person_Pcar_distance_left}')
+
+    
+    if not self.is_dangerous:
+      # check Left dangerous
+      if person_Pcar_distance_right < threshold or person_Pcar_distance_left < threshold: 
+        # get depth of car -> dangerous_distance 
+        self.is_dangerous = True
+        self.number_person = len(person_info['person'])
+        self.dg_distance = average_depth_in_bbox(pred_depth, bbox_target)
+      
+    else:
+      self.dg_distance = average_depth_in_bbox(pred_depth, bbox_target)
+
+        # check exist see cross person and check max min distance on the right car
+        # print('cheking cross: ', len(person_info['person']),  self.number_person)
+
+      if len(person_info['person']) == self.number_person and person_Pcar_distance_left > dg_distance:
+        # person_Pcar_distance = get_left_boxes_and_Maxdistances(bbox_target, person_info['person'])
+        print(f'distance Max per_car:  {person_Pcar_distance_left} > {dg_distance} END DG')
+        if person_Pcar_distance_left > dg_distance: 
+          self.is_dangerous = False
+          self.dg_distance = 0
+          self.timeout_dg = 0
+
+    
+    return (f'is_dangerous: {self.is_dangerous}\ndistance: {self.dg_distance:.3f}, timeout: {self.timeout_dg}'
+            f'\nright {person_Pcar_distance_right}, left {person_Pcar_distance_left}' )
+  
+
+
+
 
 
   @torch.inference_mode()  # Turns off gradient computation
@@ -365,8 +442,7 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
     # Need to run this every step for GPS filtering
     tick_data = self.tick(input_data)
 
-    det = self.detector.forward(input_data['rgb_front'][1], timestamp)
-
+    det_yolo = self.detector.forward(input_data['rgb_front'][1], timestamp)
 
     lidar_indices = []
     for i in range(self.config.lidar_seq_len):
@@ -452,9 +528,12 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
     # forward pass
     pred_wps = []
     pred_target_speeds = []
+    pred_target_speed_visual = None
+
     pred_checkpoints = []
     bounding_boxes = []
     wp_selected = None
+    # print('self.model_count: ',self.model_count)
     for i in range(self.model_count):
       if self.config.backbone in ('transFuser', 'aim', 'bev_encoder'):
         pred_wp, \
@@ -480,6 +559,7 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
           pred_bounding_box = None
       else:
         raise ValueError('The chosen vision backbone does not exist. The options are: transFuser, aim, bev_encoder')
+      
 
       if self.config.use_wp_gru:
         if self.config.multi_wp_output:
@@ -514,38 +594,9 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
       self.tp_attention_buffer.append(attention_weights[2])
 
     # Visualize the output of the last model
-    if compute_debug_output:
-      if self.config.use_controller_input_prediction:
-        prob_target_speed = F.softmax(pred_target_speed, dim=1)
-      else:
-        prob_target_speed = pred_target_speed
-      #print(np.stack(bbs_vehicle_coordinate_system,axis = 0).shape)
-
-
-      scale_factor = 4
-      loc_pixels_per_meter = self.config.pixels_per_meter * scale_factor
-      bb_image = np.zeros((len(bbs_vehicle_coordinate_system),9))
-      for k,bb in enumerate(deepcopy(bbs_vehicle_coordinate_system)):
-        bb_image[k] = t_u.bb_vehicle_to_image_system(bb, loc_pixels_per_meter, self.config.min_x, self.config.min_y)
-      mot_trackers = self.tracker.update(bb_image)
-      self.nets[0].visualize_model(self.save_path,
-                                   self.step,
-                                   tick_data['rgb'],
-                                   lidar_bev,
-                                   tick_data['target_point'],
-                                   pred_wp,
-                                   pred_semantic=pred_semantic,
-                                   pred_bev_semantic=pred_bev_semantic,
-                                   pred_depth=pred_depth,
-                                   pred_checkpoint=pred_checkpoint,
-                                   pred_speed=prob_target_speed,
-                                   pred_bb=bbs_vehicle_coordinate_system,
-                                   gt_speed=gt_velocity,
-                                   gt_wp=pred_wp_1,
-                                   wp_selected=wp_selected,
-                                   trackers = mot_trackers,
-                                   sub_det=det,
-                                   labels_name=self.detector.names)
+    status_DG = self.dangerous_distance(sub_det=det_yolo, pred_semantic=pred_semantic, pred_depth=pred_depth)
+    
+    pred_target_speed_visual = pred_target_speed
 
     if self.config.use_wp_gru:
       self.pred_wp = torch.stack(pred_wps, dim=0).mean(dim=0)
@@ -626,6 +677,46 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
       if stop_for_stop_sign:
         throttle = 0.0
         brake = True
+
+    # refine throttel
+    ori_throttle = throttle
+    throttle = throttle*0.0 if self.is_dangerous else throttle
+    status_DG += f'\nthrottle {throttle:.3f}/{ori_throttle:.3f}'
+    # throttle = 0 if throttle < 0 else throttle
+
+    if compute_debug_output:
+      if self.config.use_controller_input_prediction:
+        prob_target_speed = F.softmax(pred_target_speed_visual, dim=1)
+      else:
+        prob_target_speed = pred_target_speed_visual
+
+      scale_factor = 4
+      loc_pixels_per_meter = self.config.pixels_per_meter * scale_factor
+      bb_image = np.zeros((len(bbs_vehicle_coordinate_system),9))
+      for k,bb in enumerate(deepcopy(bbs_vehicle_coordinate_system)):
+        bb_image[k] = t_u.bb_vehicle_to_image_system(bb, loc_pixels_per_meter, self.config.min_x, self.config.min_y)
+      mot_trackers = self.tracker.update(bb_image)
+      self.nets[0].visualize_model(self.save_path,
+                                   self.step,
+                                   tick_data['rgb'],
+                                   lidar_bev,
+                                   tick_data['target_point'],
+                                   pred_wp,
+                                   pred_semantic=pred_semantic,
+                                   pred_bev_semantic=pred_bev_semantic,
+                                   pred_depth=pred_depth,
+                                   pred_checkpoint=pred_checkpoint,
+                                   pred_speed=prob_target_speed,
+                                   pred_bb=bbs_vehicle_coordinate_system,
+                                   gt_speed=gt_velocity,
+                                   gt_wp=pred_wp_1,
+                                   wp_selected=wp_selected,
+                                   tracker= mot_trackers,
+                                   sub_det=det_yolo,
+                                   labels_name=self.detector.names,
+                                   stt= status_DG)
+      
+
 
     control = carla.VehicleControl(steer=float(steer), throttle=float(throttle), brake=float(brake))
 
